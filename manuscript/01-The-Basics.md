@@ -213,6 +213,39 @@ This function uses the `RegExp` constructor to pass in the `u` flag as an argume
 
 I> If your code still needs to work in older JavaScript engines, it's best to use the `RegExp` constructor exclusively when using the `u` flag. This will prevent syntax errors and allow you to optionally detect and use the `u` flag without aborting execution.
 
+### Unicode Identifiers
+
+Better Unicode support in ECMAScript 6 also means changes to what characters may be used for an identifier. In ECMAScript 5, it was already possible to use Unicode escape sequences for identifiers, such as:
+
+```js
+// Valid in ECMAScript 5 and 6
+var \u0061 = "abc";
+
+console.log(\u0061);        // "abc"
+
+// equivalent to
+// console.log(a);          // "abc"
+```
+
+In ECMAScript 6, you can also use Unicode code point escape sequences as identifiers:
+
+```js
+// Valid in ECMAScript 5 and 6
+var \u{61} = "abc";
+
+console.log(\u{61});        // "abc"
+
+// equivalent to
+// console.log(a);          // "abc"
+```
+
+Additionally, ECMAScript 6 formally specifies valid identifiers in terms of [Unicode Standard Annex #31: Unicode Identifier and Pattern Syntax](http://unicode.org/reports/tr31/):
+
+1. The first character must be `$`, `_`, or any Unicode symbol with a derived core property of `ID_Start`.
+1. Each subsequent character must be `$`, `_`, `\u200c` (zero-width non-joiner), `\u200d` (zero-width joiner), or any Unicode symbol with a derived core property of `ID_Continue`.
+
+The `ID_Start` and `ID_Continue` derived core properties are defined in Unicode Identifier and Pattern Syntax as a way to identify symbols that are appropriate for use in identifiers such as variables and domain names (the specification is not specific to JavaScript).
+
 ## Other String Changes
 
 JavaScript strings have always lagged behind similar features of other languages. It was only in ECMAScript 5 that strings finally gained a `trim()` method, and ECMAScript 6 continues extending strings with new functionality.
@@ -276,66 +309,74 @@ Regular expressions are an important part of working with strings in JavaScript,
 
 ### The Regular Expression y Flag
 
-ECMAScript 6 standardized the `y` flag after it had been implemented in Firefox as a proprietary extension to regular expressions. The `y` (sticky) flag indicates that the next match should be made starting with the value of `lastIndex` on the regular expression.
-
-The `lastIndex` property indicates the position at which to start the match of a string and is set to `0` by default, meaning matches always start at the beginning of a string. You can, however, overwrite `lastIndex` to have it start from somewhere else:
+ECMAScript 6 standardized the `y` flag after it had been implemented in Firefox as a proprietary extension to regular expressions. The `y` (sticky) flag starts matching at the position specified by its `lastIndex` property. If there is no match at that location, then the regular expression stops matching. For example:
 
 ```js
-var pattern = /hello\d\s?/g,
-    text = "hello1 hello2 hello3",
-    result = pattern.exec(text);
+var text = "hello1 hello2 hello3",
+    pattern = /hello\d\s?/,
+    result = pattern.exec(text),
+    globalPattern = /hello\d\s?/g,
+    globalResult = globalPattern.exec(text),
+    stickyPattern = /hello\d\s?/y,
+    stickyResult = stickyPattern.exec(text);
 
-console.log(result[0]);     // "hello1 "
+console.log(result[0]);         // "hello1 "
+console.log(globalResult[0]);   // "hello1 "
+console.log(stickyResult[0]);   // "hello1 "
 
-pattern.lastIndex = 7;
-result = pattern.exec(text);
-
-console.log(result[0]);     // "hello2 "
-```
-
-In this example, the regular expression matches the string `"hello"` followed by a number and optionally a whitespace character. The `g` flag is important as it allows the regular expression to use `lastIndex` when set (without it, matches always start at `0` regardless of the `lastIndex` value). The first call to `exec()` results in matching "hello1" first while the second call, with a `lastIndex` of 7, matches "hello2" first.
-
-The sticky flag tells the regular expression to save the index of the next character after the last match in `lastIndex` whenever an operation is performed (in the previous example, 7 is the location of next character after "hello1 "). If an operation results in no match then `lastIndex` is set back to 0.
-
-```js
-var pattern = /hello\d\s?/y,
-    text = "hello1 hello2 hello3",
-    result = pattern.exec(text);
-
-console.log(result[0]);             // "hello1 "
-console.log(pattern.lastIndex);     // 7
+pattern.lastIndex = 1;
+globalPattern.lastIndex = 1;
+stickyPattern.lastIndex = 1;
 
 result = pattern.exec(text);
+globalResult = globalPattern.exec(text);
+stickyResult = stickyPattern.exec(text);
 
-console.log(result[0]);             // "hello2 "
-console.log(pattern.lastIndex);     // 14
+console.log(result[0]);         // "hello1 "
+console.log(globalResult[0]);   // "hello2 "
+console.log(stickyResult[0]);   // Error! stickyResult is null
 ```
 
-Here, the same pattern is used but with the sticky flag instead of the global flag. The value of `lastIndex` changed to 7 after the first call to `exec()` and to 14 after the second call. Since the sticky flag is updating `lastIndex` for you, there's no need to keep track and manually update it yourself.
+In this example, three regular expressions are used, one each with the `y` flag, the `g` flag, and no flags. When used the first time, all three regular expressions return the same value `"hello1 "` (with a space at the end). After that, the `lastIndex` property is changed to 1, meaning that the regular expression should start matching from the second character. The regular expression with no flags completely ignores the change to `lastIndex` and still matches `"hello1 "`; the regular expression with the `g` flag goes on to match `"hello2 "` because it is searching forward from the second character of the string ("e"); the sticky regular expression doesn't match anything beginning at the second character so `stickyResult` is `null`.
 
-Perhaps the most important thing to understand about the sticky flag is that sticky regular expressions have an implied `^` at the beginning, indicating that the pattern should match from the beginning of the input. For example, if the previous example is changed to not match the whitespace character, there are different results:
+The sticky flag saves the index of the next character after the last match in `lastIndex` whenever an operation is performed. If an operation results in no match then `lastIndex` is set back to 0. This behavior is the same as the global flag:
 
 ```js
-var pattern = /hello\d/y,
-    text = "hello1 hello2 hello3",
-    result = pattern.exec(text);
+var text = "hello1 hello2 hello3",
+    pattern = /hello\d\s?/,
+    result = pattern.exec(text),
+    globalPattern = /hello\d\s?/g,
+    globalResult = globalPattern.exec(text),
+    stickyPattern = /hello\d\s?/y,
+    stickyResult = stickyPattern.exec(text);
 
-console.log(result[0]);             // "hello1"
-console.log(pattern.lastIndex);     // 6
+console.log(result[0]);         // "hello1 "
+console.log(globalResult[0]);   // "hello1 "
+console.log(stickyResult[0]);   // "hello1 "
+
+console.log(pattern.lastIndex);         // 0
+console.log(globalPattern.lastIndex);   // 7
+console.log(stickyPattern.lastIndex);   // 7
 
 result = pattern.exec(text);
+globalResult = globalPattern.exec(text);
+stickyResult = stickyPattern.exec(text);
 
-console.log(result);                // null
-console.log(pattern.lastIndex);     // 0
+console.log(result[0]);         // "hello1 "
+console.log(globalResult[0]);   // "hello2 "
+console.log(stickyResult[0]);   // "hello2 "
+
+console.log(pattern.lastIndex);         // 0
+console.log(globalPattern.lastIndex);   // 14
+console.log(stickyPattern.lastIndex);   // 14
 ```
 
-Without matching the whitespace character, the `lastIndex` is set to 6 after the first call to `exec()`. That means the regular expression will be evaluating the string as if it were this:
+The value of `lastIndex` changed to 7 after the first call to `exec()` and to 14 after the second call for both the sticky and global patterns.
 
-```js
-" hello2 hello3"
-```
+There are also a couple other subtle details to the sticky flag:
 
-Since there is an implied `^` at the beginning of the regular expression pattern, the pattern starts by matching `"h"` against the space and sees that they are not equivalent. The matching stops there and `null` is returned. The `lastIndex` property is reset to 0.
+1. The `lastIndex` property is only honored when calling methods on the regular expression object such as `exec()` and `test()`. Passing the regular expression to a string method, such as `match()`, will not result in the sticky behavior.
+1. When using the `^` character to match the start of a string, sticky regular expressions will only match from the start of the string (or start of line in multiline mode). So long as `lastIndex` is 0, the `^` makes a sticky regular expression no different from a non-sticky one. If `lastIndex` doesn't correspond to the beginning of the string (in single-line mode) or the beginning of a line (in multiline mode), the sticky regular expression will never match
 
 As with other regular expression flags, you can detect the presence of `y` by using a property. The `sticky` property is set to true with the sticky flag is present and false if not:
 
@@ -347,7 +388,6 @@ console.log(pattern.sticky);    // true
 
 The `sticky` property is read-only based on the presence of the flag and so cannot be changed in code.
 
-I> The `lastIndex` property is only honored when calling methods on the regular expression object such as `exec()` and `test()`. Passing the regular expression to a string method, such as `match()`, will not result in the sticky behavior.
 
 Similar to the `u` flag, the `y` flag is a syntax change, so it will cause a syntax error in older JavaScript engines. You can use the same approach to detect support:
 
@@ -830,12 +870,12 @@ A> ~~~~~~~~
 A>
 A> This causes a syntax error because the opening curly brace is normally the beginning of a block and blocks can't be part of assignment expressions.
 A>
-A> The solution is to wrap the left side literal in parentheses:
+A> The solution is to wrap the entire expression in parentheses:
 A>
 A> {:lang="js"}
 A> ~~~~~~~~
 A> // no syntax error
-A> ({ repeat, save, rules: { custom }}) = options;
+A> ({ repeat, save, rules: { custom }} = options);
 A> ~~~~~~~~
 A>
 A> This now works without any problems.

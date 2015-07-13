@@ -102,62 +102,62 @@ Here, if the last argument isn't provided, the function `getCallback()` is calle
 Since JavaScript functions can be passed any number of parameters, it's not always necessary to define each parameter specifically. Early on, JavaScript provided the `arguments` object as a way of inspecting all function parameters that were passed without necessarily defining each one individually. While that worked fine in most cases, it can become a little cumbersome to work with. For example:
 
 ```js
-function sum(first) {
-    let result = first,
-        i = 1,
-        len = arguments.length;
+function pick(object) {
+    let result = Object.create(null);
 
-    while (i < len) {
-        result += arguments[i];
-        i++;
+    for (let i = 1, len = arguments.length; i < len; i++) {
+        result[arguments[i]] = object[arguments[i]];
     }
 
     return result;
 }
+
+let book = {
+    title: "Understanding ECMAScript 6",
+    author: "Nicholas C. Zakas",
+    year: 2015
+};
+
+let bookData = pick(book, "author", "year");
+
+console.log(bookData.author);   // "Nicholas C. Zakas"
+console.log(bookData.year);     // 2015
 ```
 
-This function adds together all of the parameters that are passed to it so you can call `sum(1)` or `sum(1,2,3,4)` and it will still work. There are couple of things to notice about this function. First, it's not at all obvious that the function is capable of handling more than one parameter. You could add in several more named parameters, but you would always fall short of indicating that this function can take any number of parameters. Second, because the first parameter is named and used directly, you have to start looking in the `arguments` object at index 1 instead of starting at index 0. Remembering to use the appropriate indices with `arguments` isn't necessarily difficult, but it's one more thing to keep track of. ECMAScript 6 introduces rest parameters to help with these issues.
+This function mimics the `pick()` method from Underscore. The first argument is the object from which to copy properties and every other argument is the name of a property that should be copied on the result. There are couple of things to notice about this function. First, it's not at all obvious that the function is capable of handling more than one parameter. You could add in several more named parameters, but you would always fall short of indicating that this function can take any number of parameters. Second, because the first parameter is named and used directly, you have to start looking in the `arguments` object at index 1 instead of starting at index 0. Remembering to use the appropriate indices with `arguments` isn't necessarily difficult, but it's one more thing to keep track of. ECMAScript 6 introduces rest parameters to help with these issues.
 
 Rest parameters are indicated by three dots (`...`) preceding a named parameter. That named parameter then becomes an `Array` containing the rest of the parameters (which is why these are called "rest" parameters). For example, `sum()` can be rewritten using rest parameters like this:
 
 ```js
-function sum(first, ...numbers) {
-    let result = first,
-        i = 0,
-        len = numbers.length;
+function pick(object, ...keys) {
+    let result = Object.create(null);
 
-    while (i < len) {
-        result += numbers[i];
-        i++;
+    for (let i = 0, len = keys.length; i < len; i++) {
+        result[keys[i]] = object[keys[i]];
     }
 
     return result;
 }
 ```
 
-In this version of the function, `numbers` is a rest parameter that contains all parameters after the first one (unlike `arguments`, which contains all parameters including the first one). That means you can iterate over `numbers` from beginning to end without worry. As a bonus, you can tell by looking at the function that it is capable of handling any number of parameters.
-
-I> The `sum()` method doesn't actually need any named parameters. You could, in theory, use only rest parameters and have it continue to work exactly the same. However, in that case, the rest parameters would effectively be the same as `arguments`, so the only benefit you gain is that the rest parameters would be an actual array, as opposed to `arguments`, which is just an array-like object.
+In this version of the function, `keys` is a rest parameter that contains all parameters after the first one (unlike `arguments`, which contains all parameters including the first one). That means you can iterate over `keys` from beginning to end without worry. As a bonus, you can tell by looking at the function that it is capable of handling any number of parameters.
 
 The only restriction on rest parameters is that no other named arguments can follow in the function declaration. For example, this causes syntax error:
 
 ```js
 // Syntax error: Can't have a named parameter after rest parameters
-function sum(first, ...numbers, last) {
-    let result = first,
-        i = 0,
-        len = numbers.length;
+function pick(object, ...keys, last) {
+    let result = Object.create(null);
 
-    while (i < len) {
-        result += numbers[i];
-        i++;
+    for (let i = 0, len = keys.length; i < len; i++) {
+        result[keys[i]] = object[keys[i]];
     }
 
     return result;
 }
 ```
 
-Here, the parameter `last` follows the rest parameter `numbers` and causes a syntax error.
+Here, the parameter `last` follows the rest parameter `keys` and causes a syntax error.
 
 Rest parameters were designed to replace `arguments` in ECMAScript. Originally ECMAScript 4 did away with `arguments` and added rest parameters to allow for an unlimited number of arguments to be passed to functions. Even though ECMAScript 4 never came into being, the idea was kept around and reintroduced in ECMAScript 6 despite `arguments` not being removed from the language.
 
@@ -340,6 +340,100 @@ console.log((new Function()).name);     // "anonymous"
 
 The `name` of a bound function will always be the `name` of the function being bound prefixed with the `"bound "`, so the bound version of `doSomething()` is `"bound doSomething"`.
 
+## new.target, [[Call]], and [[Construct]]
+
+In ECMAScript 5 and earlier, functions serve the double purpose of being callable with or without `new`. When used with `new`, the `this` value inside of a function is a new object and that new object is returned. For example:
+
+```js
+function Person(name) {
+    this.name = name;
+}
+
+var person = new Person("Nicholas");
+var notAPerson = Person("Nicholas");
+
+console.log(person);        // "[Object object]"
+console.log(notAPerson);    // "undefined"
+```
+
+Calling `Person()` without `new` results in `undefined` (and a `name` property being set on the global object in non-strict mode). It's fairly obvious from the code that the intent is to use `Person` with `new` to create a new object. The confusion over the dual roles of functions led to some changes in ECMAScript 6.
+
+First, the specification defines two different internal-only methods that every function has: `[[Call]]` and `[[Construct]]`. When a function is called without `new`, the `[[Call]]` method is executed, which essentially executes the body of the function as it appears in the code. When a function is called with `new`, that's when the `[[Construct]]` method is called. The `[[Construct]]` method is responsible for creating a new object, called the *new target*, and then executing the function body with `this` set to the new target. Functions that have a `[[Construct]]` method are called *constructors*.
+
+I> Keep in mind that not all functions have `[[Construct]]`, and therefore not all function can be called with `new`. Arrow functions, discussed later in this chapter, do not have a `[[Construct]]` method.
+
+The most popular way to determine if a function was called with `new` in ECMAScript 5 is to use `instanceof`, for example:
+
+```js
+function Person(name) {
+    if (this instanceof Person) {
+        this.name = name;   // using new
+    } else {
+        throw new Error("You must use new with Person.")
+    }
+}
+
+var person = new Person("Nicholas");
+var notAPerson = Person("Nicholas");  // throws error
+```
+
+Here, the `this` value is checked to see if it's an instance of the constructor, and if so, it continues as normal. If `this` isn't an instance of `Person`, then an error is thrown. This works because the `[[Construct]]` method creates a new instance of `Person` and assigns it to `this`. Unfortunately, this approach is not completely reliable because `this` can be an instance of `Person` without using `new`, for example:
+
+```js
+function Person(name) {
+    if (this instanceof Person) {
+        this.name = name;   // using new
+    } else {
+        throw new Error("You must use new with Person.")
+    }
+}
+
+var person = new Person("Nicholas");
+var notAPerson = Person.call(person, "Michael");    // works!
+```
+
+The call to `Person.call()` passes the `person` variable as the first argument, which means `this` is set to `person` inside of the `Person` function. To the function, there's no way to distinguish this from being called with `new`.
+
+To solve this problem, ECMAScript 6 introduces the `new.target` *metaproperty*. When a function's `[[Construct]]` method is called, `new.target` is filled with the target of the `new` operator, which is typically the constructor of the newly created object instance that will become `this` inside the function body. If `[[Call]]` is executed, then `new.target` is `undefined`. That means you can now safely detect if a function is called with `new` by checking that `new.target` is defined:
+
+```js
+function Person(name) {
+    if (typeof new.target !== "undefined") {
+        this.name = name;   // using new
+    } else {
+        throw new Error("You must use new with Person.")
+    }
+}
+
+var person = new Person("Nicholas");
+var notAPerson = Person.call(person, "Michael");    // error!
+```
+
+By using `new.target` instead of `this instanceof Person`, the `Person` constructor is now correctly throwing an error when used without `new`.
+
+You can also check that `new.target` was called with a specific constructor, for instance:
+
+```js
+function Person(name) {
+    if (typeof new.target === Person) {
+        this.name = name;   // using new
+    } else {
+        throw new Error("You must use new with Person.")
+    }
+}
+
+function AnotherPerson(name) {
+    Person.call(this, name);
+}
+
+var person = new Person("Nicholas");
+var anotherPerson = new AnotherPerson("Nicholas");  // error!
+```
+
+In this example, `new.target` must be `Person` in order to work correctly. When `new AnotherPerson("Nicholas")` is called, `new.target` is set to `AnotherPerson`, so the subsequent call to `Person.call(this, name)` will throw an error even though `new.target` is defined.
+
+W> Using `new.target` outside of a function is a syntax error.
+
 ## Block-Level Functions
 
 In ECMAScript 3 and earlier, a function declaration occurring inside of a block (a *block-level function*) was technically a syntax error, but many browsers still supported it. Unfortunately, each browser that allowed the syntax behaved in a slightly different way, so it is considered a best practice to avoid function declarations inside of blocks (the best alternative is to use a function expression).
@@ -427,7 +521,7 @@ In this example, `doSomething()` is hoisted into the global scope so that it sti
 One of the most interesting new parts of ECMAScript 6 are arrow functions. Arrow functions are, as the name suggests, functions defined with a new syntax that uses an "arrow" (`=>`). However, arrow functions behave differently than traditional JavaScript functions in a number of important ways:
 
 * **Lexical `this` binding** - The value of `this` inside of the function is determined by where the arrow function is defined not where it is used.
-* **Not `new`able** - Arrow functions cannot be used as constructors and will throw an error when used with `new`.
+* **Not `new`able** - Arrow functions do not have a `[[Construct]]` method and therefore cannot be used as constructors. Arrow functions throw an error when used with `new`.
 * **Can't change `this`** - The value of `this` inside of the function can't be changed, it remains the same value throughout the entire lifecycle of the function.
 * **No `arguments` object** - You can't access arguments through the `arguments` object, you must use named arguments or other ES6 features such as rest arguments.
 
@@ -526,7 +620,7 @@ Wrapping the object literal in parentheses signals that the braces are an object
 A popular use of functions in JavaScript is immediately-invoked function expressions (IIFEs). IIFEs allow you to define an anonymous function and call it immediately without saving a reference. This pattern comes in handy when you want to create a scope that is shielded from the rest of a program. For example:
 
 ```js
-let person = (function(name) {
+let person = function(name) {
 
     return {
         getName() {
@@ -534,7 +628,7 @@ let person = (function(name) {
         }
     };
 
-}("Nicholas"));
+}("Nicholas");
 
 console.log(person.getName());      // "Nicholas"
 ```
@@ -557,7 +651,7 @@ let person = ((name) => {
 console.log(person.getName());      // "Nicholas"
 ```
 
-Note that the location of the parentheses in this example is different from the previous. The previous example using the `function` keyword wraps parentheses around the entire expression, including passing the argument `"Nicholas"` to the function. This example has the parentheses around just the arrow function and then passes the argument.
+Note that the location of the parentheses is around just the arrow function definition, and does not include `("Nicholas")`. This is different from a formal function, where the parentheses can be placed outside of the passed-in parameters as well as just as around the function definition.
 
 ### Lexical this Binding
 
@@ -709,5 +803,7 @@ Destructured parameters use the destructuring syntax to make options objects mor
 The spread operator is a companion to rest parameters, allowing you to destructure an array into separate parameters when calling a function. Prior to ECMAScript 6, the only ways to pass individual parameters that were contained in an array were either manually specifying each parameter or using `apply()`. With the spread operator, you can easily pass an array to any function without worrying about the `this` binding of the function.
 
 The addition of the `name` property helps to more easily identify functions for debugging and evaluation purposes. Additionally, ECMAScript 6 formally defines the behavior of block-level functions so they are no longer a syntax error in strict mode.
+
+The behavior of a function has been defined by `[[Call]]`, normal function execution, and `[[Construct]]`, when a function is called with `new`. The `new.target` metaproperty allows you to determine if a function was called using `new` or not.
 
 The biggest change to functions in ECMAScript 6 was the addition of arrow functions. Arrow functions are designed to be used in places where anonymous function expressions have traditionally been used. Arrow functions have a more concise syntax, lexical `this` binding, and no `arguments` object. Additionally, arrow functions can't change their `this` binding and so can't be used as constructors.

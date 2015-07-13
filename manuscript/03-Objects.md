@@ -73,7 +73,7 @@ var person = {
 };
 ```
 
-This shorthand syntax creates a method on the `person` object just as the previous example did. There is no difference aside from saving you some keystrokes, so `sayName()` is assigned an anonymous function expression and has all of the same characteristics as the function defined in the previous example.
+This shorthand syntax, also called *concise method* syntax, creates a method on the `person` object just as the previous example did. There is no difference aside from saving you some keystrokes, so `sayName()` is assigned an anonymous function expression and has all of the same characteristics as the function defined in the previous example.
 
 I> The `name` property of a method created using this shorthand is the name used before the parentheses. In the previous example, the `name` property for `person.sayName()` is `"sayName"`.
 
@@ -381,8 +381,9 @@ At it's simplest, `super` acts as a pointer to the current object's prototype, e
 let friend = {
     __proto__: person,
     getGreeting() {
-        // same as Object.getPrototypeOf(this).getGreeting.call(this)
-        // or this.__proto__.getGreeting.call(this)
+        // in the previous example, this is the same as:
+        // 1. Object.getPrototypeOf(this).getGreeting.call(this)
+        // 2. this.__proto__.getGreeting.call(this)
         return super.getGreeting() + ", hi!";
     }
 };
@@ -390,23 +391,63 @@ let friend = {
 
 The call to `super.getGreeting()` is the same as `Object.getPrototypeOf(this).getGreeting.call(this)` or `this.__proto__.getGreeting.call(this)`. Similarly, you can call any method on an object's prototype by using a `super` reference.
 
-If you're calling a prototype method with the exact same name, then you can also call `super` as a function, for example:
+Where `super` is really powerful is when you have multiple levels of inheritance. In such a case, `Object.getPrototypeOf()` no longer works in all circumstances. For example:
 
 ```js
+let person = {
+    getGreeting() {
+        return "Hello";
+    }
+};
+
+// prototype is person
 let friend = {
     __proto__: person,
     getGreeting() {
-        // same as Object.getPrototypeOf(this).getGreeting.call(this)
-        // or this.__proto__.getGreeting.call(this)
-        // or super.getGreeting()
-        return super() + ", hi!";
+        return Object.getPrototypeOf(this).getGreeting.call(this) + ", hi!";
     }
 };
+
+// prototype is friend
+let relative = {
+    __proto__: friend
+};
+
+console.log(person.getGreeting());                  // "Hello"
+console.log(friend.getGreeting());                  // "Hello, hi!"
+console.log(relative.getGreeting());                // error!
 ```
 
-Calling `super` in this manner tells the JavaScript engine that you want to use the prototype method with the same name as the current method. So `super()` actually does a lookup using the containing function's `name` property (discussed in Chapter 2) to find the correct method.
+In this example, `Object.getPrototypeOf()` results in an error when `relative.getGreeting()` is called. That's because `this` is `relative`, and the prototype of `relative` is `friend`. When `friend.getGreeting().call()` is called with `relative` as `this`, the process starts over again and continues to call recursively until a stack overflow error occurs. This is a difficult problem to solve in ECMAScript 5, but with ECMAScript 6 and `super`, it's easy:
 
-W> `super` references can only be used inside of functions and cannot be used in the global scope. Attempting to use `super` in the global scope results in a syntax error.
+```js
+let person = {
+    getGreeting() {
+        return "Hello";
+    }
+};
+
+// prototype is person
+let friend = {
+    __proto__: person,
+    getGreeting() {
+        return super.getGreeting() + ", hi!";
+    }
+};
+
+// prototype is friend
+let relative = {
+    __proto__: friend
+};
+
+console.log(person.getGreeting());                  // "Hello"
+console.log(friend.getGreeting());                  // "Hello, hi!"
+console.log(relative.getGreeting());                // "Hello, hi!"
+```
+
+Because `super` references are not dynamic, they always refer to the correct object. In this case, `super.getGreeting()` always refers to `person.getGreeting()`, regardless of how many other object inherit this method.
+
+W> `super` references can only be used inside of concise methods and cannot be used in other functions or the global scope. Attempting to use `super` outside of concise methods results in a syntax error.
 
 ### Methods
 

@@ -45,9 +45,21 @@ Ever since the first version of JavaScript, developers have longed for a way to 
 ```js
 let message = "Multiline \
 string";
+
+console.log(message);       // "Multiline string"
 ```
 
-Despite this working in all major JavaScripte engines, the behavior was defined as a bug and many recommended avoiding its usage.
+Note that the string has no newlines present when output, that's because the backslash is treated as a continuation rather than a newline. In order to have a newline at that point, you would need to manually include it, such as:
+
+```js
+let message = "Multiline \n\
+string";
+
+console.log(message);       // "Multiline
+                            //  string"
+```
+
+Despite this working in all major JavaScript engines, the behavior was defined as a bug and many recommended avoiding its usage.
 
 Other attempts to create multiline strings usually relied on arrays or string concatenation, such as:
 
@@ -55,9 +67,9 @@ Other attempts to create multiline strings usually relied on arrays or string co
 let message = [
     "Multiline ",
     "string"
-].join("");
+].join("\n");
 
-let message = "Multiline " +
+let message = "Multiline \n" +
     "string";
 ```
 
@@ -171,7 +183,7 @@ If you had a function called `passthru()`, that function would receive three arg
     * `" items cost $"` - the string after the first substitution and before the second
     * `"."` - the string after the second substitution
 1. `10` - the interpreted value for `count` (this becomes `substitutions[0]`)
-1. `"2.50"` - the interpreted value for `(count * price).toFixed(2)` (this becomes `substitutions[2]`)
+1. `"2.50"` - the interpreted value for `(count * price).toFixed(2)` (this becomes `substitutions[1]`)
 
 Note that the first item in `literals` is an empty string. This is to ensure that `literals[0]` is always the start of the string, just like `literals[literals.length - 1]` is always the end of the string. There is always one fewer substitution than literal, which is to say that `substitutions.length === literals.length - 1` all the time.
 
